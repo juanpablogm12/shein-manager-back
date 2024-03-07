@@ -1,4 +1,5 @@
 from fastapi import Depends, APIRouter, HTTPException, status
+from fastapi.responses import FileResponse
 from selenium import webdriver
 from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.support.ui import WebDriverWait as wait
@@ -7,7 +8,9 @@ from selenium.webdriver.common.by import By
 from webdriver_manager.firefox import GeckoDriverManager
 from bs4 import BeautifulSoup
 import pprint
-import time
+import requests
+import zipfile
+import os
 
 
 router = APIRouter()
@@ -34,25 +37,37 @@ def scraping_favorites_products():
     cards = soup.find_all('section', class_='wish-list__item')
 
     list_products = []
+    
 
     for element in cards:
         name = element.find('a', class_='S-product-item__link').text
-        price = element.find('span', class_='normal-price-ctn__sale-price').text
+        value = element.find('span', class_='normal-price-ctn__sale-price').text
         image = element.find('div', class_='crop-image-container')['data-before-crop-src']
 
-        card_info = {'name': name, 'price': price, 'image': image}
+        card_info = {'name': name, 'value': value, 'image': f"https:{image}"}
         list_products.append(card_info)
 
-    #     r = requests.get(f'https:{image}')
-    #     with open(f'{name}.jpg', 'wb') as f:
-    #         f.write(r.content)
+
+    zip_file_path = "products.zip"
+    with zipfile.ZipFile(zip_file_path, "w") as zip_file:
+        for product in list_products:
+            image_url = product["image"]
+            image_data = requests.get(image_url).content
+            image_filename = os.path.basename(image_url)
+            zip_file.writestr(image_filename, image_data)
+
         
     driver.close()
 
     pp = pprint.PrettyPrinter(indent=2)
     pp.pprint(list_products) 
-    return list_products
+    return {"products": list_products, "zip_file_path": zip_file_path}
 
 @router.get("/")
 async def get_favorites_products():
     return scraping_favorites_products()
+
+@router.get("/download/{filename}")
+def download_zip(filename: str):
+    # Ruta para descargar el archivo zip
+    return FileResponse(filename, media_type="application/zip", filename=filename)

@@ -70,7 +70,9 @@ def login(username, password):
 
 prueba = login("juan@hotmail.com", "1234")
 
-print(prueba)
+payload = jwt.decode("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqdWFucGFibG8tZ21AaG90bWFpbC5jb20iLCJleHAiOjE3MDk2MTg1NjN9.-v3PIgKXLddbLzXeXELyUHPQ4S8dd9bli0LAiqhq2pM"
+, SECRET_KEY, algorithms=[ALGORITHM])
+print(payload)
 # print(db_client.shein_manager.users.find)
 
 # password = "1238"

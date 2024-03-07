@@ -1,4 +1,4 @@
-from fastapi import Depends, APIRouter, HTTPException, status
+from fastapi import Depends, APIRouter, HTTPException, status, Response, Request, Cookie
 from db.client import db_client
 from db.models.user import User, Token, TokenData, UserInDB
 from db.schemas.user import user_schema
@@ -33,12 +33,14 @@ def get_password_hash(password):
 
 def get_user(username: str):
     user = db_client.shein_manager.users.find_one({"username": username})
+    # print(user)
     if user :
         return UserInDB(**user)
 
 
 def authenticate_user(username: str, password: str):
     user = get_user(username)
+    print(user)
     if not user:
         return False
     if not verify_password(password, user.password):
@@ -57,13 +59,14 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_current_user(request:Request):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        token = request.cookies.get("Authorization")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
@@ -72,6 +75,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     except JWTError:
         raise credentials_exception
     user = get_user(username=token_data.username)
+    # print(user)
     if user is None:
         raise credentials_exception
     return user
@@ -100,7 +104,7 @@ async def create_user(user: UserInDB):
 
 @router.post("/token")
 async def login_for_access_token(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()], response : Response
 ) -> Token:
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
@@ -113,12 +117,13 @@ async def login_for_access_token(
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
+    response.set_cookie(key="Authorization", value=f"{access_token}")
     return Token(access_token=access_token, token_type="bearer")
 
 
 @router.get("/me", response_model=User)
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)]
-):
+):  
     return current_user
 
